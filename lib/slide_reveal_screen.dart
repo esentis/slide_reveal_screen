@@ -52,6 +52,53 @@ class SlideRevealScreen extends StatefulWidget {
   /// If the velocity is greater than this value, the animation will complete.
   final num flingVelocity;
 
+  /// This will color the region that can be dragged to reveal the hidden pages.
+  ///
+  /// Defaults to false.
+  final bool showDebugColors;
+
+  /// A builder function that returns the width of the left edge.
+  ///
+  /// The function takes in the [BuildContext] and a boolean flag indicating
+  /// whether the left hidden page is active.
+  final double Function(BuildContext context, bool isActive)?
+  leftEdgeWidthBuilder;
+
+  /// A builder function that returns the top padding of the left edge.
+  ///
+  /// The function takes in the [BuildContext] and a boolean flag indicating
+  /// whether the left hidden page is active.
+  final double Function(BuildContext context, bool isActive)?
+  leftEdgeTopPaddingBuilder;
+
+  /// A builder function that returns the bottom padding of the left edge.
+  ///
+  /// The function takes in the [BuildContext] and a boolean flag indicating
+  /// whether the left hidden page is active.
+  final double Function(BuildContext context, bool isActive)?
+  leftEdgeBottomPaddingBuilder;
+
+  /// A builder function that returns the width of the right edge.
+  ///
+  /// The function takes in the [BuildContext] and a boolean flag indicating
+  /// whether the right hidden page is active.
+  final double Function(BuildContext context, bool isActive)?
+  rightEdgeWidthBuilder;
+
+  /// A builder function that returns the top padding of the right edge.
+  ///
+  /// The function takes in the [BuildContext] and a boolean flag indicating
+  /// whether the right hidden page is active.
+  final double Function(BuildContext context, bool isActive)?
+  rightEdgeTopPaddingBuilder;
+
+  /// A builder function that returns the bottom padding of the right edge.
+  ///
+  /// The function takes in the [BuildContext] and a boolean flag indicating
+  /// whether the right hidden page is active.
+  final double Function(BuildContext context, bool isActive)?
+  rightEdgeBottomPaddingBuilder;
+
   const SlideRevealScreen({
     super.key,
     required this.leftHiddenPage,
@@ -65,6 +112,13 @@ class SlideRevealScreen extends StatefulWidget {
     this.leftWidgetVisibilityThreshold = 0.1,
     this.rightWidgetVisibilityThreshold = 0.1,
     this.flingVelocity = 500,
+    this.showDebugColors = false,
+    this.leftEdgeWidthBuilder,
+    this.leftEdgeTopPaddingBuilder,
+    this.leftEdgeBottomPaddingBuilder,
+    this.rightEdgeWidthBuilder,
+    this.rightEdgeTopPaddingBuilder,
+    this.rightEdgeBottomPaddingBuilder,
   });
 
   @override
@@ -196,10 +250,41 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
     final bool isLeft =
         _draggingFromLeft ?? _slideRevealController?.side == RevealSide.left;
     // Check if the animation has any progress.
-    final bool isActive = _animationController.value > 0;
+    final bool isAnimationActive = _animationController.value > 0;
+
     // Determine which hidden page should be visible.
-    final bool showLeft = isActive && isLeft;
-    final bool showRight = isActive && !isLeft;
+    final bool showLeft = isAnimationActive && isLeft;
+    final bool showRight = isAnimationActive && !isLeft;
+
+    final double computedLeftEdgeWidth =
+        widget.leftEdgeWidthBuilder != null
+            ? widget.leftEdgeWidthBuilder!(context, isLeft)
+            : 30;
+
+    final double computedLeftEdgeTop =
+        widget.leftEdgeTopPaddingBuilder != null
+            ? widget.leftEdgeTopPaddingBuilder!(context, isLeft)
+            : 0;
+
+    final double computedLeftEdgeBottom =
+        widget.leftEdgeBottomPaddingBuilder != null
+            ? widget.leftEdgeBottomPaddingBuilder!(context, isLeft)
+            : 0;
+
+    final double computedRightEdgeWidth =
+        widget.rightEdgeWidthBuilder != null
+            ? widget.rightEdgeWidthBuilder!(context, !isLeft)
+            : 30;
+
+    final double computedRightEdgeTop =
+        widget.rightEdgeTopPaddingBuilder != null
+            ? widget.rightEdgeTopPaddingBuilder!(context, !isLeft)
+            : 0;
+
+    final double computedRightEdgeBottom =
+        widget.rightEdgeBottomPaddingBuilder != null
+            ? widget.rightEdgeBottomPaddingBuilder!(context, !isLeft)
+            : 0;
 
     return Stack(
       children: [
@@ -262,13 +347,16 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
         // Gesture detector for the left edge.
         if (widget.isLeftActive)
           Positioned(
-            top: 0,
+            top: computedLeftEdgeTop,
             left: showLeft ? null : 0,
             right: showLeft ? 0 : null,
-            bottom: 0,
-            width: showRight ? 0 : 30,
+            bottom: computedLeftEdgeBottom,
+            width: showRight ? 0 : computedLeftEdgeWidth,
             child: ColoredBox(
-              color: Colors.transparent,
+              color:
+                  widget.showDebugColors
+                      ? Colors.red.withValues(alpha: 0.5)
+                      : Colors.transparent,
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
                 onPanUpdate: _onLeftEdgePanUpdate,
@@ -281,13 +369,16 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
           Positioned(
             // If the right hidden page is active, add the app bar height and padding to the top.
             // Because at right page is an appbar with a back button.
-            top: 0,
+            top: computedRightEdgeTop,
             left: showRight ? 0 : null,
             right: showRight ? null : 0,
-            bottom: 0,
-            width: showLeft ? 0 : 30,
+            bottom: computedRightEdgeBottom,
+            width: showLeft ? 0 : computedRightEdgeWidth,
             child: ColoredBox(
-              color: Colors.transparent,
+              color:
+                  widget.showDebugColors
+                      ? Colors.green.withValues(alpha: 0.5)
+                      : Colors.transparent,
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
                 onPanUpdate: _onRightEdgePanUpdate,
