@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:slide_reveal_screen/slide_reveal_controller.dart';
 
-/// A widget that provides a draggable screen with two hidden pages.
+/// A widget that provides a slideable screen with two hidden pages.
 ///
 /// This widget allows you to reveal a left or right hidden page by dragging
 /// from the edge of the screen.
@@ -15,7 +15,7 @@ class SlideRevealScreen extends StatefulWidget {
   /// The widget displayed as the right hidden page.
   final Widget rightHiddenPage;
 
-  /// An optional controller to manage the draggable screen.
+  /// An optional controller to manage the slide reveal widget.
   ///
   /// If no controller is provided, the widget creates its own.
   final SlideRevealController? controller;
@@ -135,7 +135,7 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
   /// The [AnimationController] used for driving the animation.
   late AnimationController _animationController;
 
-  /// The [SlideRevealController] managing the draggable screen state.
+  /// The [SlideRevealController] managing the state of the widget.
   SlideRevealController? _slideRevealController;
 
   /// The screen width, used to compute drag distances.
