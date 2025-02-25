@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:slide_reveal_screen/slide_reveal_screen.dart';
@@ -44,7 +46,7 @@ class CreatePostPage extends StatelessWidget {
       child: Center(
         child: TextButton(
           onPressed: () {
-            print('Create post button pressed');
+            log('Create post button pressed');
           },
           child: const Text(
             'Create Post',
@@ -67,7 +69,7 @@ class RightHiddenPage extends StatelessWidget {
       child: Center(
         child: TextButton(
           onPressed: () {
-            print('Right hidden page button pressed');
+            log('Right hidden page button pressed');
           },
           child: const Text(
             'Right Hidden Page',
@@ -90,9 +92,9 @@ class MainContent extends StatelessWidget {
       backgroundColor: Colors.pinkAccent,
       tabBar: CupertinoTabBar(
         onTap: (index) {
-          print('Tab $index selected');
+          log('Tab $index selected');
           if (index == 2) {
-            print('Create tab selected');
+            log('Create tab selected');
             // getIt<DraggableScreenController>().openLeft();
           }
         },
