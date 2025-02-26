@@ -145,6 +145,10 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
   /// When `null`, no drag direction has been determined yet.
   bool? _draggingFromLeft;
 
+  void _onAnimationUpdate() {
+    setState(() {}); // Direct setState without postFrameCallback
+  }
+
   @override
   void initState() {
     super.initState();
@@ -169,11 +173,7 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
     });
 
     // Listen for changes to the animation value and update the UI.
-    _animationController.addListener(() {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        setState(() {});
-      });
-    });
+    _animationController.addListener(_onAnimationUpdate);
   }
 
   /// A listener that responds to external changes on the [SlideRevealController].
@@ -248,7 +248,7 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
     // Determine the active drag direction.
     // If no drag has started, check the controller's state.
     final bool isLeft =
-        _draggingFromLeft ?? _slideRevealController?.side == RevealSide.left;
+        _draggingFromLeft ?? (_slideRevealController?.side == RevealSide.left);
     // Check if the animation has any progress.
     final bool isAnimationActive = _animationController.value > 0;
 
@@ -392,8 +392,7 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
 
   @override
   void dispose() {
-    // If the controller was created internally (i.e. not provided externally),
-    // dispose it. Otherwise, simply remove the listener.
+    _animationController.removeListener(_onAnimationUpdate);
     if (widget.controller == null) {
       _slideRevealController?.dispose();
     } else {
