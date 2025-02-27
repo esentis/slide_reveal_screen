@@ -1,6 +1,16 @@
-# slide_reveal_screen
+<p align="center">
+<img src='https://i.imgur.com/wMhWrAp.gif' width=200>
+</p>
+<p align="center">
+ <img src="https://img.shields.io/pub/v/slide_reveal_screen?color=637d0d&style=for-the-badge&logo=flutter" alt="Version" /> <img src="https://img.shields.io/github/languages/code-size/esentis/slide_reveal_screen?color=637d0d&style=for-the-badge&label=size" alt="Version" />
+</br>
+</p>
+<p align="center">
+<a href="https://github.com/esentis/slide_reveal_screen/stargazers"><img src="https://img.shields.io/github/stars/esentis/slide_reveal_screen?style=for-the-badge&logo=github&color=637d0d" alt="HTML tutorial"></a>
 
-A slideable screen with two hidden pages. Easily reveal a left or right hidden page by draggings/sliding from the edge of the screen. It’s perfect for or any UI that benefits from a hidden sliding panel.
+#### A slideable screen with two hidden pages.
+
+Easily reveal a left or right hidden page by draggings/sliding from the edge of the screen. It’s perfect for or any UI that benefits from a hidden sliding panel.
 
 ---
 
