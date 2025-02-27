@@ -1,7 +1,13 @@
 name: slide_reveal_screen
 description: "A Flutter package for sliding and revealing hidden side panels with smooth animations."
 version: 1.0.0
-homepage:
+homepage: "https://github.com/esentis/slide_reveal_screen"
+topics:
+  - drag-to-reveal
+  - side-panel
+  - sliding-panel
+  - slide-reveal
+  - ui
 
 environment:
   sdk: ^3.7.0
