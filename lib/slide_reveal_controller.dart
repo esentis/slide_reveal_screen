@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// Represents the side that can be revealed when dragging.
+/// Represents the side that can be revealed when dragging/sliding.
 enum RevealSide { left, right }
 
-/// A controller that manages the state and animation for a draggable screen.
+/// A controller that manages the state and animation for a the reveal screen widget.
 ///
 /// It holds an [AnimationController] to drive the animations when opening or closing
 /// hidden screens (left or right). It also tracks which side is currently active.
@@ -25,7 +25,7 @@ class SlideRevealController extends ChangeNotifier {
          upperBound: 1,
          duration: duration,
        ) {
-    /// Listen to the animation status to reset the side to null when the animation is dismissed by a fling.
+    /// Listen to the animation status to reset the side to null when the animation is dismissed.
     _animationController.addStatusListener((status) {
       if (status == AnimationStatus.dismissed && _side != null) {
         _side = null;
@@ -62,11 +62,12 @@ class SlideRevealController extends ChangeNotifier {
 
   /// Closes any open hidden page.
   ///
-  /// Resets the active side to `null`, notifies listeners,
-  /// and reverses the animation with a negative fling.
+  /// Reverses the animation with a negative fling.
+  /// The side will be set to null after the animation completes,
+  /// via the AnimationStatus.dismissed listener.
   void close() {
-    _side = null;
-    notifyListeners();
+    // Don't set _side to null here - let the animation listener do it
+    // when the animation is dismissed
     _animationController.fling(velocity: -1);
   }
 
