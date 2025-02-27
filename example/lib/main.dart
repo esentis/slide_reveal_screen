@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:slide_reveal_screen/slide_reveal_controller.dart';
 import 'package:slide_reveal_screen/slide_reveal_screen.dart';
 
 void main() => runApp(MyApp());
@@ -15,18 +16,29 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> with TickerProviderStateMixin {
+  late final SlideRevealController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = SlideRevealController(vsync: this);
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Slide Left and Right to reveal hidden pages',
       home: Material(
         child: SlideRevealScreen(
-          leftHiddenPage: CreatePostPage(),
-          rightHiddenPage: RightHiddenPage(),
-          leftWidgetVisibilityThreshold: 0.3,
-          leftPlaceHolderWidget: Center(
-            child: Text('Control threshold to open left hidden page'),
-          ),
+          controller: _controller,
+          leftHiddenPage: LeftHiddenPage(controller: _controller),
+          rightHiddenPage: RightHiddenPage(controller: _controller),
+          leftWidgetVisibilityThreshold:
+              0.5, // 50% of screen width should be visibile to activate actual widget
+          leftPlaceHolderWidget: Center(child: Text('LEFT PLACEHOLDER')),
+          rightWidgetVisibilityThreshold:
+              0.5, // 50% of screen width should be visibile to activate actual widget
+          rightPlaceHolderWidget: Center(child: Text('RIGHT PLACEHOLDER')),
           child: MainContent(),
         ),
       ),
@@ -36,22 +48,39 @@ class _MyAppState extends State<MyApp> with TickerProviderStateMixin {
 
 /// HomeScreen displays a horizontal PageView for three inner tabs.
 /// CreatePostPage is the left hidden page.
-class CreatePostPage extends StatelessWidget {
-  const CreatePostPage({super.key});
-
+class LeftHiddenPage extends StatelessWidget {
+  const LeftHiddenPage({super.key, required SlideRevealController controller})
+    : _controller = controller;
+  final SlideRevealController _controller;
   @override
   Widget build(BuildContext context) {
     return Container(
       color: Colors.blueAccent,
       child: Center(
-        child: TextButton(
-          onPressed: () {
-            log('Create post button pressed');
-          },
-          child: const Text(
-            'Create Post',
-            style: TextStyle(fontSize: 28, color: Colors.white),
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'LEFT HIDDEN PAGE\nyou can either swipe to go back or tap the button',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, color: Colors.white),
+            ),
+            TextButton(
+              onPressed: () {
+                _controller.close();
+              },
+              child: const Text(
+                'Get back',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  decoration: TextDecoration.underline,
+                  color: Colors.white,
+                  decorationColor: Colors.white,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -60,21 +89,39 @@ class CreatePostPage extends StatelessWidget {
 
 /// RightHiddenPage is a placeholder for the right hidden page.
 class RightHiddenPage extends StatelessWidget {
-  const RightHiddenPage({super.key});
+  const RightHiddenPage({super.key, required SlideRevealController controller})
+    : _controller = controller;
+  final SlideRevealController _controller;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       color: Colors.green,
       child: Center(
-        child: TextButton(
-          onPressed: () {
-            log('Right hidden page button pressed');
-          },
-          child: const Text(
-            'Right Hidden Page',
-            style: TextStyle(fontSize: 28, color: Colors.white),
-          ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'RIGHT HIDDEN PAGE\nyou can either swipe to go back or tap the button',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, color: Colors.white),
+            ),
+            TextButton(
+              onPressed: () {
+                _controller.close();
+              },
+              child: Text(
+                'Get back',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  decoration: TextDecoration.underline,
+                  decorationColor: Colors.white,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -89,7 +136,7 @@ class MainContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CupertinoTabScaffold(
-      backgroundColor: Colors.pinkAccent,
+      backgroundColor: Colors.grey,
       tabBar: CupertinoTabBar(
         onTap: (index) {
           log('Tab $index selected');
@@ -125,8 +172,9 @@ class MainContent extends StatelessWidget {
         if (index == 0) {
           return Center(
             child: Text(
-              'Slide from left or right'
-              'as you swipe left or right',
+              'Drag/Slide your finger from the right or left edge to reveal hidden pages',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, color: Colors.black),
             ),
           );
         }
