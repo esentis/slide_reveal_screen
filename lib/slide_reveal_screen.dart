@@ -145,10 +145,6 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
   /// When `null`, no drag direction has been determined yet.
   bool? _draggingFromLeft;
 
-  void _onAnimationUpdate() {
-    setState(() {}); // Direct setState without postFrameCallback
-  }
-
   @override
   void initState() {
     super.initState();
@@ -171,9 +167,6 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
         _draggingFromLeft = null;
       }
     });
-
-    // Listen for changes to the animation value and update the UI.
-    _animationController.addListener(_onAnimationUpdate);
   }
 
   /// A listener that responds to external changes on the [SlideRevealController].
@@ -187,10 +180,7 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
     } else {
       _draggingFromLeft = null;
     }
-    // Schedule a rebuild after the current frame.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      setState(() {});
-    });
+    setState(() {});
   }
 
   /// Called when the user drags on the left edge of the screen.
@@ -242,157 +232,163 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Obtain the screen width from MediaQuery for gesture calculations.
-    _screenWidth = MediaQuery.of(context).size.width;
+    return AnimatedBuilder(
+      animation: _animationController,
+      builder: (context, child) {
+        // Obtain the screen width from MediaQuery for gesture calculations.
+        _screenWidth = MediaQuery.of(context).size.width;
 
-    // Determine the active drag direction.
-    // If no drag has started, check the controller's state.
-    final bool isLeft =
-        _draggingFromLeft ?? (_slideRevealController?.side == RevealSide.left);
-    // Check if the animation has any progress.
-    final bool isAnimationActive = _animationController.value > 0;
+        // Determine the active drag direction.
+        // If no drag has started, check the controller's state.
+        final bool isLeft =
+            _draggingFromLeft ??
+            (_slideRevealController?.side == RevealSide.left);
+        // Check if the animation has any progress.
+        final bool isAnimationActive = _animationController.value > 0;
 
-    // Determine which hidden page should be visible.
-    final bool showLeft = isAnimationActive && isLeft;
-    final bool showRight = isAnimationActive && !isLeft;
+        // Determine which hidden page should be visible.
+        final bool showLeft = isAnimationActive && isLeft;
+        final bool showRight = isAnimationActive && !isLeft;
 
-    final double computedLeftEdgeWidth =
-        widget.leftEdgeWidthBuilder != null
-            ? widget.leftEdgeWidthBuilder!(context, isLeft)
-            : 30;
+        final double computedLeftEdgeWidth =
+            widget.leftEdgeWidthBuilder != null
+                ? widget.leftEdgeWidthBuilder!(context, isLeft)
+                : 30;
 
-    final double computedLeftEdgeTop =
-        widget.leftEdgeTopPaddingBuilder != null
-            ? widget.leftEdgeTopPaddingBuilder!(context, isLeft)
-            : 0;
+        final double computedLeftEdgeTop =
+            widget.leftEdgeTopPaddingBuilder != null
+                ? widget.leftEdgeTopPaddingBuilder!(context, isLeft)
+                : 0;
 
-    final double computedLeftEdgeBottom =
-        widget.leftEdgeBottomPaddingBuilder != null
-            ? widget.leftEdgeBottomPaddingBuilder!(context, isLeft)
-            : 0;
+        final double computedLeftEdgeBottom =
+            widget.leftEdgeBottomPaddingBuilder != null
+                ? widget.leftEdgeBottomPaddingBuilder!(context, isLeft)
+                : 0;
 
-    final double computedRightEdgeWidth =
-        widget.rightEdgeWidthBuilder != null
-            ? widget.rightEdgeWidthBuilder!(context, !isLeft)
-            : 30;
+        final double computedRightEdgeWidth =
+            widget.rightEdgeWidthBuilder != null
+                ? widget.rightEdgeWidthBuilder!(context, !isLeft)
+                : 30;
 
-    final double computedRightEdgeTop =
-        widget.rightEdgeTopPaddingBuilder != null
-            ? widget.rightEdgeTopPaddingBuilder!(context, !isLeft)
-            : 0;
+        final double computedRightEdgeTop =
+            widget.rightEdgeTopPaddingBuilder != null
+                ? widget.rightEdgeTopPaddingBuilder!(context, !isLeft)
+                : 0;
 
-    final double computedRightEdgeBottom =
-        widget.rightEdgeBottomPaddingBuilder != null
-            ? widget.rightEdgeBottomPaddingBuilder!(context, !isLeft)
-            : 0;
-
-    return Stack(
-      children: [
-        // Left hidden page layer.
-        Positioned.fill(
-          child: Offstage(
-            offstage: !showLeft,
-            child: Transform.translate(
-              // The horizontal offset creates a parallax effect.
-              offset: Offset(
-                -_screenWidth / 2 +
-                    (_animationController.value * (_screenWidth / 2)),
-                0,
-              ),
-              // Show the left hidden page if the animation value is above the threshold,
-              // otherwise show the placeholder.
-              child:
-                  (_animationController.value >
-                          widget.leftWidgetVisibilityThreshold)
-                      ? widget.leftHiddenPage
-                      : widget.leftPlaceHolderWidget,
-            ),
-          ),
-        ),
-        // Right hidden page layer.
-        Positioned.fill(
-          child: Offstage(
-            offstage: !showRight,
-            child: Transform.translate(
-              offset: Offset(
-                _screenWidth / 2 -
-                    (_animationController.value * (_screenWidth / 2)),
-                0,
-              ),
-              child:
-                  (_animationController.value >
-                          widget.rightWidgetVisibilityThreshold)
-                      ? widget.rightHiddenPage
-                      : widget.rightPlaceHolderWidget,
-            ),
-          ),
-        ),
-        // Main content layer, which translates based on the animation value.
-        Positioned.fill(
-          child: AnimatedBuilder(
-            animation: _animationController,
-            builder: (context, child) {
-              final double offset =
-                  isLeft
-                      ? _animationController.value * _screenWidth
-                      : -_animationController.value * _screenWidth;
-              return Transform.translate(
-                offset: Offset(offset, 0),
-                child: child,
-              );
-            },
-            child: widget.child,
-          ),
-        ),
-        // Gesture detector for the left edge.
-        if (widget.isLeftActive)
-          Positioned(
-            top: computedLeftEdgeTop,
-            left: showLeft ? null : 0,
-            right: showLeft ? 0 : null,
-            bottom: computedLeftEdgeBottom,
-            width: showRight ? 0 : computedLeftEdgeWidth,
-            child: ColoredBox(
-              color:
-                  widget.showDebugColors
-                      ? Colors.red.withValues(alpha: 0.5)
-                      : Colors.transparent,
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onPanUpdate: _onLeftEdgePanUpdate,
-                onPanEnd: _onLeftEdgePanEnd,
+        final double computedRightEdgeBottom =
+            widget.rightEdgeBottomPaddingBuilder != null
+                ? widget.rightEdgeBottomPaddingBuilder!(context, !isLeft)
+                : 0;
+        return Stack(
+          children: [
+            // Left hidden page layer.
+            Positioned.fill(
+              child: Offstage(
+                offstage: !showLeft,
+                child: Transform.translate(
+                  // The horizontal offset creates a parallax effect.
+                  offset: Offset(
+                    -_screenWidth / 2 +
+                        (_animationController.value * (_screenWidth / 2)),
+                    0,
+                  ),
+                  // Show the left hidden page if the animation value is above the threshold,
+                  // otherwise show the placeholder.
+                  child:
+                      (_animationController.value >
+                              widget.leftWidgetVisibilityThreshold)
+                          ? widget.leftHiddenPage
+                          : widget.leftPlaceHolderWidget,
+                ),
               ),
             ),
-          ),
-        // Gesture detector for the right edge.
-        if (widget.isRightActive)
-          Positioned(
-            // If the right hidden page is active, add the app bar height and padding to the top.
-            // Because at right page is an appbar with a back button.
-            top: computedRightEdgeTop,
-            left: showRight ? 0 : null,
-            right: showRight ? null : 0,
-            bottom: computedRightEdgeBottom,
-            width: showLeft ? 0 : computedRightEdgeWidth,
-            child: ColoredBox(
-              color:
-                  widget.showDebugColors
-                      ? Colors.green.withValues(alpha: 0.5)
-                      : Colors.transparent,
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onPanUpdate: _onRightEdgePanUpdate,
-                onPanEnd: _onRightEdgePanEnd,
+            // Right hidden page layer.
+            Positioned.fill(
+              child: Offstage(
+                offstage: !showRight,
+                child: Transform.translate(
+                  offset: Offset(
+                    _screenWidth / 2 -
+                        (_animationController.value * (_screenWidth / 2)),
+                    0,
+                  ),
+                  child:
+                      (_animationController.value >
+                              widget.rightWidgetVisibilityThreshold)
+                          ? widget.rightHiddenPage
+                          : widget.rightPlaceHolderWidget,
+                ),
               ),
             ),
-          ),
-      ],
+            // Main content layer, which translates based on the animation value.
+            Positioned.fill(
+              child: AnimatedBuilder(
+                animation: _animationController,
+                builder: (context, child) {
+                  final double offset =
+                      isLeft
+                          ? _animationController.value * _screenWidth
+                          : -_animationController.value * _screenWidth;
+                  return RepaintBoundary(
+                    child: Transform.translate(
+                      offset: Offset(offset, 0),
+                      child: child,
+                    ),
+                  );
+                },
+                child: widget.child,
+              ),
+            ),
+            // Gesture detector for the left edge.
+            if (widget.isLeftActive)
+              Positioned(
+                top: computedLeftEdgeTop,
+                left: showLeft ? null : 0,
+                right: showLeft ? 0 : null,
+                bottom: computedLeftEdgeBottom,
+                width: showRight ? 0 : computedLeftEdgeWidth,
+                child: ColoredBox(
+                  color:
+                      widget.showDebugColors
+                          ? Colors.red.withValues(alpha: 0.5)
+                          : Colors.transparent,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onPanUpdate: _onLeftEdgePanUpdate,
+                    onPanEnd: _onLeftEdgePanEnd,
+                  ),
+                ),
+              ),
+            // Gesture detector for the right edge.
+            if (widget.isRightActive)
+              Positioned(
+                // If the right hidden page is active, add the app bar height and padding to the top.
+                // Because at right page is an appbar with a back button.
+                top: computedRightEdgeTop,
+                left: showRight ? 0 : null,
+                right: showRight ? null : 0,
+                bottom: computedRightEdgeBottom,
+                width: showLeft ? 0 : computedRightEdgeWidth,
+                child: ColoredBox(
+                  color:
+                      widget.showDebugColors
+                          ? Colors.green.withValues(alpha: 0.5)
+                          : Colors.transparent,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onPanUpdate: _onRightEdgePanUpdate,
+                    onPanEnd: _onRightEdgePanEnd,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
   @override
   void dispose() {
-    _animationController.removeListener(_onAnimationUpdate);
     if (widget.controller == null) {
       _slideRevealController?.dispose();
     } else {
