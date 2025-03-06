@@ -31,6 +31,9 @@ class _MyAppState extends State<MyApp> with TickerProviderStateMixin {
       home: Material(
         child: SlideRevealScreen(
           controller: _controller,
+          onProgressChanged: (progress) {
+            log('Progress: $progress');
+          },
           leftHiddenPage: LeftHiddenPage(controller: _controller),
           rightHiddenPage: RightHiddenPage(controller: _controller),
           leftWidgetVisibilityThreshold:

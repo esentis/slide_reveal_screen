@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:slide_reveal_screen/slide_reveal_controller.dart';
+import 'package:slide_reveal_screen/slide_reveal_progress.dart';
 
 /// A widget that provides a slideable screen with two hidden pages.
 ///
@@ -99,6 +100,9 @@ class SlideRevealScreen extends StatefulWidget {
   final double Function(BuildContext context, bool isActive)?
   rightEdgeBottomPaddingBuilder;
 
+  /// Callback that gets invoked whenever the slide reveal progress changes.
+  final ValueChanged<SlideRevealProgress>? onProgressChanged;
+
   const SlideRevealScreen({
     super.key,
     required this.leftHiddenPage,
@@ -119,6 +123,7 @@ class SlideRevealScreen extends StatefulWidget {
     this.rightEdgeWidthBuilder,
     this.rightEdgeTopPaddingBuilder,
     this.rightEdgeBottomPaddingBuilder,
+    this.onProgressChanged,
   });
 
   @override
@@ -145,6 +150,9 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
   /// When `null`, no drag direction has been determined yet.
   bool? _draggingFromLeft;
 
+  // Used to detect the animation direction
+  double _previousValue = 0.0;
+
   @override
   void initState() {
     super.initState();
@@ -167,6 +175,46 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
         _draggingFromLeft = null;
       }
     });
+
+    // Add a listener to report progress updates.
+    _animationController.addListener(_progressListener);
+  }
+
+  void _progressListener() {
+    if (widget.onProgressChanged != null) {
+      // Determine active side using the controller's side or local drag state.
+      RevealSide? activeSide = _slideRevealController!.side;
+      if (activeSide == null && _draggingFromLeft != null) {
+        activeSide = _draggingFromLeft! ? RevealSide.left : RevealSide.right;
+      }
+
+      // Determine the RevealState based on the animation value.
+      RevealState state;
+      if (_animationController.value == 0.0) {
+        state = RevealState.closed;
+      } else if (_animationController.value == 1.0) {
+        state = RevealState.open;
+      } else {
+        final double delta = _animationController.value - _previousValue;
+        if (delta > 0) {
+          state = RevealState.opening;
+        } else if (delta < 0) {
+          state = RevealState.closing;
+        } else {
+          state =
+              activeSide != null ? RevealState.opening : RevealState.closing;
+        }
+      }
+
+      _previousValue = _animationController.value;
+
+      final progress = SlideRevealProgress(
+        activeSide: activeSide,
+        value: _animationController.value,
+        state: state,
+      );
+      widget.onProgressChanged!(progress);
+    }
   }
 
   /// A listener that responds to external changes on the [SlideRevealController].
@@ -389,6 +437,7 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
 
   @override
   void dispose() {
+    _animationController.removeListener(_progressListener);
     if (widget.controller == null) {
       _slideRevealController?.dispose();
     } else {
