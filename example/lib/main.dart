@@ -2,8 +2,7 @@ import 'dart:developer';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:slide_reveal_screen/slide_reveal_controller.dart';
-import 'package:slide_reveal_screen/slide_reveal_screen.dart';
+import 'package:slide_reveal_screen/slider_reveal_screen.dart';
 
 void main() => runApp(MyApp());
 
@@ -31,9 +30,7 @@ class _MyAppState extends State<MyApp> with TickerProviderStateMixin {
       home: Material(
         child: SlideRevealScreen(
           controller: _controller,
-          onProgressChanged: (progress) {
-            log('Progress: $progress');
-          },
+          onProgressChanged: (progress) {},
           leftHiddenPage: LeftHiddenPage(controller: _controller),
           rightHiddenPage: RightHiddenPage(controller: _controller),
           leftWidgetVisibilityThreshold:
