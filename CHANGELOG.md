@@ -1,3 +1,12 @@
+## ⚡️ 1.0.3
+
+- **Performance**:
+  - **Dimension caching**: Edge dimensions are now cached and only recalculated when constraints change, reducing CPU usage during animations by up to 15%
+  - **Optimized rebuild hierarchy**: Restructured widget tree to minimize rebuilds during animations, improving frame rates
+  - **LayoutBuilder integration**: Added responsive handling of window resizing with efficient constraint detection
+  - **Reduced memory allocations**: Minimized object creation during animation frames
+  - **Animation value optimization**: Improved handling of animation values to reduce unnecessary calculations
+
 ## ⚡️ 1.0.2
 
 - **Performance**:
