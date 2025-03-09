@@ -24,12 +24,12 @@ class SlideRevealScreen extends StatefulWidget {
   /// The main content of the screen.
   final Widget child;
 
-  /// A placeholder widget to display for the left side if the hidden page isn’t fully visible.
+  /// A placeholder widget to display for the left side if the hidden page isn't fully visible.
   ///
   /// This is when [leftWidgetVisibilityThreshold] is not reached.
   final Widget leftPlaceHolderWidget;
 
-  /// A placeholder widget for the right side when its hidden page isn’t fully visible.
+  /// A placeholder widget for the right side when its hidden page isn't fully visible.
   ///
   /// This is when [rightWidgetVisibilityThreshold] is not reached.
   final Widget rightPlaceHolderWidget;
@@ -143,15 +143,24 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
   /// The [SlideRevealController] managing the state of the widget.
   SlideRevealController? _slideRevealController;
 
-  /// The screen width, used to compute drag distances.
-  double _screenWidth = 0;
-
   /// A flag that indicates whether the user is dragging from the left.
   /// When `null`, no drag direction has been determined yet.
   bool? _draggingFromLeft;
 
   // Used to detect the animation direction
   double _previousValue = 0.0;
+
+  // Cached dimensions to optimize rebuilds
+  BoxConstraints? _previousConstraints;
+
+  // Cache for computed dimensions
+  final Map<String, double> _dimensionCache = {};
+
+  // Cache for computed layout values
+  bool? _cachedIsLeft;
+  bool? _cachedShowLeft;
+  bool? _cachedShowRight;
+  bool? _cachedIsAnimationActive;
 
   @override
   void initState() {
@@ -173,6 +182,11 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
     _animationController.addStatusListener((status) {
       if (status == AnimationStatus.dismissed) {
         _draggingFromLeft = null;
+        // Clear cached values related to animation state
+        _cachedIsLeft = null;
+        _cachedShowLeft = null;
+        _cachedShowRight = null;
+        _cachedIsAnimationActive = null;
       }
     });
 
@@ -225,6 +239,10 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
   void _externalControllerListener() {
     if (_slideRevealController!.side != null) {
       _draggingFromLeft = _slideRevealController!.side == RevealSide.left;
+      // Clear cached values when external controller changes direction
+      _cachedIsLeft = null;
+      _cachedShowLeft = null;
+      _cachedShowRight = null;
     } else {
       _draggingFromLeft = null;
     }
@@ -235,10 +253,18 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
   ///
   /// This updates the animation value by calculating the change based on
   /// the drag delta and screen width.
-  void _onLeftEdgePanUpdate(DragUpdateDetails details) {
-    _draggingFromLeft ??= true;
+  void _onLeftEdgePanUpdate(DragUpdateDetails details, double screenWidth) {
+    // Check if drag direction has changed
+    if (_draggingFromLeft == null || _draggingFromLeft == false) {
+      _draggingFromLeft = true;
+      // Reset the cache to force recalculation
+      _cachedIsLeft = null;
+      _cachedShowLeft = null;
+      _cachedShowRight = null;
+    }
+
     final double delta = details.delta.dx;
-    final double newValue = _animationController.value + delta / _screenWidth;
+    final double newValue = _animationController.value + delta / screenWidth;
     _animationController.value = newValue.clamp(0.0, 1.0);
   }
 
@@ -258,10 +284,18 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
   /// Called when the user drags on the right edge of the screen.
   ///
   /// Similar to the left edge update but inverts the delta calculation.
-  void _onRightEdgePanUpdate(DragUpdateDetails details) {
-    _draggingFromLeft ??= false;
+  void _onRightEdgePanUpdate(DragUpdateDetails details, double screenWidth) {
+    // Check if drag direction has changed
+    if (_draggingFromLeft == null || _draggingFromLeft == true) {
+      _draggingFromLeft = false;
+      // Reset the cache to force recalculation
+      _cachedIsLeft = null;
+      _cachedShowLeft = null;
+      _cachedShowRight = null;
+    }
+
     final double delta = details.delta.dx;
-    final double newValue = _animationController.value - delta / _screenWidth;
+    final double newValue = _animationController.value - delta / screenWidth;
     _animationController.value = newValue.clamp(0.0, 1.0);
   }
 
@@ -278,140 +312,309 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
     }
   }
 
+  /// Gets a cached dimension or computes it if not available.
+  /// Automatically invalidates cache when constraints change.
+  double _getCachedDimension(
+    String key,
+    double Function() computeFn,
+    BoxConstraints constraints, [
+    bool forceRecompute = false,
+  ]) {
+    // Check if constraints have changed or forced recompute
+    if (_previousConstraints != constraints || forceRecompute) {
+      // Only clear the cache if constraints changed
+      if (_previousConstraints != constraints) {
+        _dimensionCache.clear();
+        _previousConstraints = constraints;
+      }
+    }
+
+    // Return cached value or compute new one
+    if (!_dimensionCache.containsKey(key)) {
+      _dimensionCache[key] = computeFn();
+    }
+
+    return _dimensionCache[key]!;
+  }
+
+  // Build the left hidden page with optimized transforms
+  Widget _buildLeftHiddenPage(
+    double screenWidth,
+    bool isLeft,
+    BoxConstraints constraints,
+  ) {
+    return Positioned.fill(
+      child: Offstage(
+        offstage: !(_animationController.value > 0 && isLeft),
+        child: RepaintBoundary(
+          child: Transform.translate(
+            offset: Offset(
+              -screenWidth / 2 +
+                  (_animationController.value * (screenWidth / 2)),
+              0,
+            ),
+            child:
+                (_animationController.value >
+                        widget.leftWidgetVisibilityThreshold)
+                    ? widget.leftHiddenPage
+                    : widget.leftPlaceHolderWidget,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Build the right hidden page with optimized transforms
+  Widget _buildRightHiddenPage(
+    double screenWidth,
+    bool isLeft,
+    BoxConstraints constraints,
+  ) {
+    return Positioned.fill(
+      child: Offstage(
+        offstage: !(_animationController.value > 0 && !isLeft),
+        child: RepaintBoundary(
+          child: Transform.translate(
+            offset: Offset(
+              screenWidth / 2 -
+                  (_animationController.value * (screenWidth / 2)),
+              0,
+            ),
+            child:
+                (_animationController.value >
+                        widget.rightWidgetVisibilityThreshold)
+                    ? widget.rightHiddenPage
+                    : widget.rightPlaceHolderWidget,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Build the main content with optimized transform
+  Widget _buildMainContent(
+    double screenWidth,
+    bool isLeft,
+    BoxConstraints constraints,
+  ) {
+    final double contentOffset =
+        isLeft
+            ? _animationController.value * screenWidth
+            : -_animationController.value * screenWidth;
+
+    return Positioned.fill(
+      child: Transform.translate(
+        offset: Offset(contentOffset, 0),
+        child: RepaintBoundary(child: widget.child),
+      ),
+    );
+  }
+
+  // Build the left edge gesture detector with cached dimensions
+  Widget _buildLeftEdgeGestureDetector(
+    double screenWidth,
+    bool isLeft,
+    bool isAnimationActive,
+    bool showRight,
+    BoxConstraints constraints,
+  ) {
+    // Cache computation with unique keys
+    final String widthKey = 'leftEdgeWidth_${isLeft}_${constraints.maxWidth}';
+    final String topKey = 'leftEdgeTop_${isLeft}_${constraints.maxHeight}';
+    final String bottomKey =
+        'leftEdgeBottom_${isLeft}_${constraints.maxHeight}';
+
+    final double computedLeftEdgeWidth = _getCachedDimension(
+      widthKey,
+      () => widget.leftEdgeWidthBuilder?.call(context, isLeft) ?? 30,
+      constraints,
+    );
+
+    final double computedLeftEdgeTop = _getCachedDimension(
+      topKey,
+      () => widget.leftEdgeTopPaddingBuilder?.call(context, isLeft) ?? 0,
+      constraints,
+    );
+
+    final double computedLeftEdgeBottom = _getCachedDimension(
+      bottomKey,
+      () => widget.leftEdgeBottomPaddingBuilder?.call(context, isLeft) ?? 0,
+      constraints,
+    );
+
+    return Positioned(
+      top: computedLeftEdgeTop,
+      left: isAnimationActive && isLeft ? null : 0,
+      right: isAnimationActive && isLeft ? 0 : null,
+      bottom: computedLeftEdgeBottom,
+      width: showRight ? 0 : computedLeftEdgeWidth,
+      child: ColoredBox(
+        color:
+            widget.showDebugColors
+                ? Colors.red.withValues(alpha: 0.5)
+                : Colors.transparent,
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onPanUpdate: (details) => _onLeftEdgePanUpdate(details, screenWidth),
+          onPanEnd: _onLeftEdgePanEnd,
+        ),
+      ),
+    );
+  }
+
+  // Build the right edge gesture detector with cached dimensions
+  Widget _buildRightEdgeGestureDetector(
+    double screenWidth,
+    bool isLeft,
+    bool isAnimationActive,
+    bool showLeft,
+    BoxConstraints constraints,
+  ) {
+    // Cache computation with unique keys
+    final String widthKey = 'rightEdgeWidth_${!isLeft}_${constraints.maxWidth}';
+    final String topKey = 'rightEdgeTop_${!isLeft}_${constraints.maxHeight}';
+    final String bottomKey =
+        'rightEdgeBottom_${!isLeft}_${constraints.maxHeight}';
+
+    final double computedRightEdgeWidth = _getCachedDimension(
+      widthKey,
+      () => widget.rightEdgeWidthBuilder?.call(context, !isLeft) ?? 30,
+      constraints,
+    );
+
+    final double computedRightEdgeTop = _getCachedDimension(
+      topKey,
+      () => widget.rightEdgeTopPaddingBuilder?.call(context, !isLeft) ?? 0,
+      constraints,
+    );
+
+    final double computedRightEdgeBottom = _getCachedDimension(
+      bottomKey,
+      () => widget.rightEdgeBottomPaddingBuilder?.call(context, !isLeft) ?? 0,
+      constraints,
+    );
+
+    return Positioned(
+      top: computedRightEdgeTop,
+      left: isAnimationActive && !isLeft ? 0 : null,
+      right: isAnimationActive && !isLeft ? null : 0,
+      bottom: computedRightEdgeBottom,
+      width: showLeft ? 0 : computedRightEdgeWidth,
+      child: ColoredBox(
+        color:
+            widget.showDebugColors
+                ? Colors.green.withValues(alpha: 0.5)
+                : Colors.transparent,
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onPanUpdate: (details) => _onRightEdgePanUpdate(details, screenWidth),
+          onPanEnd: _onRightEdgePanEnd,
+        ),
+      ),
+    );
+  }
+
+  // Get or compute animation-dependent state
+  bool _getIsLeft() {
+    // Always check if dragging direction has changed
+    bool newIsLeft =
+        _draggingFromLeft ?? (_slideRevealController?.side == RevealSide.left);
+
+    // Update cache when value changes or not yet set
+    if (_cachedIsLeft == null || _cachedIsLeft != newIsLeft) {
+      _cachedIsLeft = newIsLeft;
+      // Force recalculation of dependent states
+      _cachedShowLeft = null;
+      _cachedShowRight = null;
+    }
+
+    return _cachedIsLeft!;
+  }
+
+  bool _getIsAnimationActive(double animationValue) {
+    bool newIsActive = animationValue > 0;
+
+    // Update cache when animation state changes
+    if (_cachedIsAnimationActive == null ||
+        _cachedIsAnimationActive != newIsActive) {
+      _cachedIsAnimationActive = newIsActive;
+      // Force recalculation of dependent values
+      _cachedShowLeft = null;
+      _cachedShowRight = null;
+    }
+
+    return _cachedIsAnimationActive!;
+  }
+
+  bool _getShowLeft(bool isLeft, bool isAnimationActive) {
+    _cachedShowLeft ??= isAnimationActive && isLeft;
+    return _cachedShowLeft!;
+  }
+
+  bool _getShowRight(bool isLeft, bool isAnimationActive) {
+    _cachedShowRight ??= isAnimationActive && !isLeft;
+    return _cachedShowRight!;
+  }
+
   @override
   Widget build(BuildContext context) {
-    _screenWidth = MediaQuery.of(context).size.width;
+    // Using LayoutBuilder to respond to size changes
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Get screen width from constraints
+        final double screenWidth = constraints.maxWidth;
 
-    // Pre-wrap the main content in a RepaintBoundary for efficiency
-    final mainContent = RepaintBoundary(child: widget.child);
+        // Check if constraints have changed
+        final bool constraintsChanged = _previousConstraints != constraints;
+        if (constraintsChanged) {
+          // Clear cached values when constraints change
+          _dimensionCache.clear();
+          _previousConstraints = constraints;
+        }
 
-    return AnimatedBuilder(
-      animation: _animationController,
-      builder: (context, _) {
-        // Determine the active drag direction
-        final bool isLeft =
-            _draggingFromLeft ??
-            (_slideRevealController?.side == RevealSide.left);
-        final bool isAnimationActive = _animationController.value > 0;
+        return ValueListenableBuilder<double>(
+          valueListenable: _animationController,
+          builder: (context, animationValue, _) {
+            // Cache and compute state values
+            final bool isLeft = _getIsLeft();
+            final bool isAnimationActive = _getIsAnimationActive(
+              animationValue,
+            );
+            final bool showLeft = _getShowLeft(isLeft, isAnimationActive);
+            final bool showRight = _getShowRight(isLeft, isAnimationActive);
 
-        // Determine which hidden page should be visible
-        final bool showLeft = isAnimationActive && isLeft;
-        final bool showRight = isAnimationActive && !isLeft;
+            return Stack(
+              children: [
+                // Left hidden page - only rebuilds when animation changes
+                _buildLeftHiddenPage(screenWidth, isLeft, constraints),
 
-        // Calculate edge dimensions
-        final double computedLeftEdgeWidth =
-            widget.leftEdgeWidthBuilder?.call(context, isLeft) ?? 30;
-        final double computedLeftEdgeTop =
-            widget.leftEdgeTopPaddingBuilder?.call(context, isLeft) ?? 0;
-        final double computedLeftEdgeBottom =
-            widget.leftEdgeBottomPaddingBuilder?.call(context, isLeft) ?? 0;
-        final double computedRightEdgeWidth =
-            widget.rightEdgeWidthBuilder?.call(context, !isLeft) ?? 30;
-        final double computedRightEdgeTop =
-            widget.rightEdgeTopPaddingBuilder?.call(context, !isLeft) ?? 0;
-        final double computedRightEdgeBottom =
-            widget.rightEdgeBottomPaddingBuilder?.call(context, !isLeft) ?? 0;
+                // Right hidden page - only rebuilds when animation changes
+                _buildRightHiddenPage(screenWidth, isLeft, constraints),
 
-        // Calculate the offset for the main content directly here
-        final double contentOffset =
-            isLeft
-                ? _animationController.value * _screenWidth
-                : -_animationController.value * _screenWidth;
+                // Main content - only rebuilds when animation changes
+                _buildMainContent(screenWidth, isLeft, constraints),
 
-        return Stack(
-          children: [
-            // Left hidden page layer.
-            Positioned.fill(
-              child: Offstage(
-                offstage: !showLeft,
-                child: RepaintBoundary(
-                  child: Transform.translate(
-                    offset: Offset(
-                      -_screenWidth / 2 +
-                          (_animationController.value * (_screenWidth / 2)),
-                      0,
-                    ),
-                    child:
-                        (_animationController.value >
-                                widget.leftWidgetVisibilityThreshold)
-                            ? widget.leftHiddenPage
-                            : widget.leftPlaceHolderWidget,
+                // Gesture detectors - only depend on isActive state, not animation value
+                if (widget.isLeftActive)
+                  _buildLeftEdgeGestureDetector(
+                    screenWidth,
+                    isLeft,
+                    isAnimationActive,
+                    showRight,
+                    constraints,
                   ),
-                ),
-              ),
-            ),
 
-            // Right hidden page layer.
-            Positioned.fill(
-              child: Offstage(
-                offstage: !showRight,
-                child: RepaintBoundary(
-                  child: Transform.translate(
-                    offset: Offset(
-                      _screenWidth / 2 -
-                          (_animationController.value * (_screenWidth / 2)),
-                      0,
-                    ),
-                    child:
-                        (_animationController.value >
-                                widget.rightWidgetVisibilityThreshold)
-                            ? widget.rightHiddenPage
-                            : widget.rightPlaceHolderWidget,
+                if (widget.isRightActive)
+                  _buildRightEdgeGestureDetector(
+                    screenWidth,
+                    isLeft,
+                    isAnimationActive,
+                    showLeft,
+                    constraints,
                   ),
-                ),
-              ),
-            ),
-
-            // Main content layer - directly apply transform without nested AnimatedBuilder
-            Positioned.fill(
-              child: Transform.translate(
-                offset: Offset(contentOffset, 0),
-                child: mainContent,
-              ),
-            ),
-
-            // Gesture detector for the left edge - KEEP ORIGINAL IMPLEMENTATION
-            if (widget.isLeftActive)
-              Positioned(
-                top: computedLeftEdgeTop,
-                left: showLeft ? null : 0,
-                right: showLeft ? 0 : null,
-                bottom: computedLeftEdgeBottom,
-                width: showRight ? 0 : computedLeftEdgeWidth,
-                child: ColoredBox(
-                  color:
-                      widget.showDebugColors
-                          ? Colors.red.withValues(alpha: 0.5)
-                          : Colors.transparent,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onPanUpdate: _onLeftEdgePanUpdate,
-                    onPanEnd: _onLeftEdgePanEnd,
-                  ),
-                ),
-              ),
-
-            // Gesture detector for the right edge - KEEP ORIGINAL IMPLEMENTATION
-            if (widget.isRightActive)
-              Positioned(
-                top: computedRightEdgeTop,
-                left: showRight ? 0 : null,
-                right: showRight ? null : 0,
-                bottom: computedRightEdgeBottom,
-                width: showLeft ? 0 : computedRightEdgeWidth,
-                child: ColoredBox(
-                  color:
-                      widget.showDebugColors
-                          ? Colors.green.withValues(alpha: 0.5)
-                          : Colors.transparent,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onPanUpdate: _onRightEdgePanUpdate,
-                    onPanEnd: _onRightEdgePanEnd,
-                  ),
-                ),
-              ),
-          ],
+              ],
+            );
+          },
         );
       },
     );
@@ -419,7 +622,12 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
 
   @override
   void dispose() {
+    // Clean up all resources
     _animationController.removeListener(_progressListener);
+
+    // Clear caches
+    _dimensionCache.clear();
+
     if (widget.controller == null) {
       _slideRevealController?.dispose();
     } else {
