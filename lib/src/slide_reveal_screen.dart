@@ -103,6 +103,16 @@ class SlideRevealScreen extends StatefulWidget {
   /// Callback that gets invoked whenever the slide reveal progress changes.
   final ValueChanged<SlideRevealProgress>? onProgressChanged;
 
+  /// A widget builder for the left hidden page.
+  /// This allows for dynamic creation of the widget only when needed.
+  /// If not provided, the leftHiddenPage will be used directly.
+  final Widget Function()? leftHiddenPageBuilder;
+
+  /// A widget builder for the right hidden page.
+  /// This allows for dynamic creation of the widget only when needed.
+  /// If not provided, the rightHiddenPage will be used directly.
+  final Widget Function()? rightHiddenPageBuilder;
+
   const SlideRevealScreen({
     super.key,
     required this.leftHiddenPage,
@@ -124,6 +134,8 @@ class SlideRevealScreen extends StatefulWidget {
     this.rightEdgeTopPaddingBuilder,
     this.rightEdgeBottomPaddingBuilder,
     this.onProgressChanged,
+    this.leftHiddenPageBuilder,
+    this.rightHiddenPageBuilder,
   });
 
   @override
@@ -162,6 +174,14 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
   bool? _cachedShowRight;
   bool? _cachedIsAnimationActive;
 
+  // Tracks whether widgets should be built based on visibility
+  bool _shouldBuildLeftPage = false;
+  bool _shouldBuildRightPage = false;
+
+  // Track previous visibility to detect changes
+  bool _wasLeftPageVisible = false;
+  bool _wasRightPageVisible = false;
+
   @override
   void initState() {
     super.initState();
@@ -187,14 +207,19 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
         _cachedShowLeft = null;
         _cachedShowRight = null;
         _cachedIsAnimationActive = null;
+
+        // When fully closed, we know both pages should be unmounted
+        _updateHiddenPagesVisibility(0.0);
       }
     });
 
-    // Add a listener to report progress updates.
-    _animationController.addListener(_progressListener);
+    // Add a listener to report progress updates and manage widget visibility
+    _animationController.addListener(_animationListener);
   }
 
-  void _progressListener() {
+  void _animationListener() {
+    _updateHiddenPagesVisibility(_animationController.value);
+
     if (widget.onProgressChanged != null) {
       // Determine active side using the controller's side or local drag state.
       RevealSide? activeSide = _slideRevealController!.side;
@@ -228,6 +253,41 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
         state: state,
       );
       widget.onProgressChanged!(progress);
+    }
+  }
+
+  /// Determines whether hidden pages should be built based on animation value
+  /// and triggers appropriate callbacks when visibility changes
+  void _updateHiddenPagesVisibility(double animationValue) {
+    final bool isLeft = _getIsLeft();
+
+    // Determine if pages should be visible based on animation and direction
+    final bool leftPageVisible = animationValue > 0 && isLeft;
+    final bool rightPageVisible = animationValue > 0 && !isLeft;
+
+    // Check for visibility changes
+    if (leftPageVisible != _wasLeftPageVisible ||
+        rightPageVisible != _wasRightPageVisible) {
+      setState(() {
+        // If animation is completely closed, we can safely unmount both pages
+        if (animationValue == 0) {
+          _shouldBuildLeftPage = false;
+          _shouldBuildRightPage = false;
+        } else {
+          // When a page becomes visible, we need to build it
+          if (leftPageVisible) _shouldBuildLeftPage = true;
+          if (rightPageVisible) _shouldBuildRightPage = true;
+
+          // When a page is hidden and animation is complete, we can unmount it
+          if (!leftPageVisible && animationValue == 0)
+            _shouldBuildLeftPage = false;
+          if (!rightPageVisible && animationValue == 0)
+            _shouldBuildRightPage = false;
+        }
+      });
+
+      _wasLeftPageVisible = leftPageVisible;
+      _wasRightPageVisible = rightPageVisible;
     }
   }
 
@@ -337,55 +397,61 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
     return _dimensionCache[key]!;
   }
 
-  // Build the left hidden page with optimized transforms
+  // Build the left hidden page with lazy instantiation
   Widget _buildLeftHiddenPage(
     double screenWidth,
     bool isLeft,
     BoxConstraints constraints,
   ) {
+    if (!_shouldBuildLeftPage) {
+      return const SizedBox.shrink(); // Don't build at all if not needed
+    }
+
     return Positioned.fill(
-      child: Offstage(
-        offstage: !(_animationController.value > 0 && isLeft),
-        child: RepaintBoundary(
-          child: Transform.translate(
-            offset: Offset(
-              -screenWidth / 2 +
-                  (_animationController.value * (screenWidth / 2)),
-              0,
-            ),
-            child:
-                (_animationController.value >
-                        widget.leftWidgetVisibilityThreshold)
-                    ? widget.leftHiddenPage
-                    : widget.leftPlaceHolderWidget,
+      child: RepaintBoundary(
+        child: Transform.translate(
+          offset: Offset(
+            -screenWidth / 2 + (_animationController.value * (screenWidth / 2)),
+            0,
           ),
+          child:
+              (_animationController.value >
+                      widget.leftWidgetVisibilityThreshold)
+                  ? widget.leftHiddenPageBuilder != null
+                      ? widget
+                          .leftHiddenPageBuilder!() // Use builder for on-demand creation
+                      : widget.leftHiddenPage
+                  : widget.leftPlaceHolderWidget,
         ),
       ),
     );
   }
 
-  // Build the right hidden page with optimized transforms
+  // Build the right hidden page with lazy instantiation
   Widget _buildRightHiddenPage(
     double screenWidth,
     bool isLeft,
     BoxConstraints constraints,
   ) {
+    if (!_shouldBuildRightPage) {
+      return const SizedBox.shrink(); // Don't build at all if not needed
+    }
+
     return Positioned.fill(
-      child: Offstage(
-        offstage: !(_animationController.value > 0 && !isLeft),
-        child: RepaintBoundary(
-          child: Transform.translate(
-            offset: Offset(
-              screenWidth / 2 -
-                  (_animationController.value * (screenWidth / 2)),
-              0,
-            ),
-            child:
-                (_animationController.value >
-                        widget.rightWidgetVisibilityThreshold)
-                    ? widget.rightHiddenPage
-                    : widget.rightPlaceHolderWidget,
+      child: RepaintBoundary(
+        child: Transform.translate(
+          offset: Offset(
+            screenWidth / 2 - (_animationController.value * (screenWidth / 2)),
+            0,
           ),
+          child:
+              (_animationController.value >
+                      widget.rightWidgetVisibilityThreshold)
+                  ? widget.rightHiddenPageBuilder != null
+                      ? widget
+                          .rightHiddenPageBuilder!() // Use builder for on-demand creation
+                      : widget.rightHiddenPage
+                  : widget.rightPlaceHolderWidget,
         ),
       ),
     );
@@ -451,7 +517,7 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
       child: ColoredBox(
         color:
             widget.showDebugColors
-                ? Colors.red.withValues(alpha: 0.5)
+                ? Colors.red.withAlpha(128)
                 : Colors.transparent,
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
@@ -503,7 +569,7 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
       child: ColoredBox(
         color:
             widget.showDebugColors
-                ? Colors.green.withValues(alpha: 0.5)
+                ? Colors.green.withAlpha(128)
                 : Colors.transparent,
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
@@ -585,10 +651,10 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
 
             return Stack(
               children: [
-                // Left hidden page - only rebuilds when animation changes
+                // Left hidden page - only builds when needed
                 _buildLeftHiddenPage(screenWidth, isLeft, constraints),
 
-                // Right hidden page - only rebuilds when animation changes
+                // Right hidden page - only builds when needed
                 _buildRightHiddenPage(screenWidth, isLeft, constraints),
 
                 // Main content - only rebuilds when animation changes
@@ -623,7 +689,7 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
   @override
   void dispose() {
     // Clean up all resources
-    _animationController.removeListener(_progressListener);
+    _animationController.removeListener(_animationListener);
 
     // Clear caches
     _dimensionCache.clear();
