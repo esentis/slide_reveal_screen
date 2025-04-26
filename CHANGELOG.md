@@ -1,3 +1,12 @@
+## ⚡️ 1.0.4
+
+- **Resource Management**:
+  - **Lazy widget instantiation**: Completely rewrote hidden page management to properly unmount widgets when not visible
+  - **Widget builders**: Added `leftHiddenPageBuilder` and `rightHiddenPageBuilder` for on-demand widget creation
+  - **Memory optimization**: Resource-intensive widgets (like camera views) are now fully removed from widget tree when hidden
+  - **Lifecycle improvements**: Hidden pages now respect proper widget lifecycle for initialization and disposal
+  - **Reduced memory footprint**: Eliminated persistent widget instances when pages are not visible
+
 ## ⚡️ 1.0.3
 
 - **Performance**:
