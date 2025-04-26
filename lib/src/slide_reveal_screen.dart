@@ -279,10 +279,12 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
           if (rightPageVisible) _shouldBuildRightPage = true;
 
           // When a page is hidden and animation is complete, we can unmount it
-          if (!leftPageVisible && animationValue == 0)
+          if (!leftPageVisible && animationValue == 0) {
             _shouldBuildLeftPage = false;
-          if (!rightPageVisible && animationValue == 0)
+          }
+          if (!rightPageVisible && animationValue == 0) {
             _shouldBuildRightPage = false;
+          }
         }
       });
 
