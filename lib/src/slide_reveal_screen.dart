@@ -11,10 +11,12 @@ import 'package:slide_reveal_screen/src/slide_reveal_progress.dart';
 /// placeholder widgets, and various configuration parameters.
 class SlideRevealScreen extends StatefulWidget {
   /// The widget displayed as the left hidden page.
-  final Widget leftHiddenPage;
+  /// Either this or [leftHiddenPageBuilder] must be provided.
+  final Widget? leftHiddenPage;
 
   /// The widget displayed as the right hidden page.
-  final Widget rightHiddenPage;
+  /// Either this or [rightHiddenPageBuilder] must be provided.
+  final Widget? rightHiddenPage;
 
   /// An optional controller to manage the slide reveal widget.
   ///
@@ -105,18 +107,18 @@ class SlideRevealScreen extends StatefulWidget {
 
   /// A widget builder for the left hidden page.
   /// This allows for dynamic creation of the widget only when needed.
-  /// If not provided, the leftHiddenPage will be used directly.
+  /// Either this or [leftHiddenPage] must be provided.
   final Widget Function()? leftHiddenPageBuilder;
 
   /// A widget builder for the right hidden page.
   /// This allows for dynamic creation of the widget only when needed.
-  /// If not provided, the rightHiddenPage will be used directly.
+  /// Either this or [rightHiddenPage] must be provided.
   final Widget Function()? rightHiddenPageBuilder;
 
   const SlideRevealScreen({
     super.key,
-    required this.leftHiddenPage,
-    required this.rightHiddenPage,
+    this.leftHiddenPage,
+    this.rightHiddenPage,
     required this.child,
     this.controller,
     this.isLeftActive = true,
@@ -136,7 +138,14 @@ class SlideRevealScreen extends StatefulWidget {
     this.onProgressChanged,
     this.leftHiddenPageBuilder,
     this.rightHiddenPageBuilder,
-  });
+  }) : assert(
+         leftHiddenPage != null || leftHiddenPageBuilder != null,
+         'Either leftHiddenPage or leftHiddenPageBuilder must be provided',
+       ),
+       assert(
+         rightHiddenPage != null || rightHiddenPageBuilder != null,
+         'Either rightHiddenPage or rightHiddenPageBuilder must be provided',
+       );
 
   @override
   SlideRevealScreenState createState() => SlideRevealScreenState();
@@ -421,8 +430,9 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
                       widget.leftWidgetVisibilityThreshold)
                   ? widget.leftHiddenPageBuilder != null
                       ? widget
-                          .leftHiddenPageBuilder!() // Use builder for on-demand creation
-                      : widget.leftHiddenPage
+                          .leftHiddenPageBuilder!() // Use builder if available
+                      : widget
+                          .leftHiddenPage! // Otherwise use the direct widget
                   : widget.leftPlaceHolderWidget,
         ),
       ),
@@ -451,8 +461,9 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
                       widget.rightWidgetVisibilityThreshold)
                   ? widget.rightHiddenPageBuilder != null
                       ? widget
-                          .rightHiddenPageBuilder!() // Use builder for on-demand creation
-                      : widget.rightHiddenPage
+                          .rightHiddenPageBuilder!() // Use builder if available
+                      : widget
+                          .rightHiddenPage! // Otherwise use the direct widget
                   : widget.rightPlaceHolderWidget,
         ),
       ),
