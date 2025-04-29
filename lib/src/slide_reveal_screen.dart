@@ -480,12 +480,9 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
         isLeft
             ? _animationController.value * screenWidth
             : -_animationController.value * screenWidth;
-
-    return Positioned.fill(
-      child: Transform.translate(
-        offset: Offset(contentOffset, 0),
-        child: RepaintBoundary(child: widget.child),
-      ),
+    return Transform.translate(
+      offset: Offset(contentOffset, 0),
+      child: RepaintBoundary(child: widget.child),
     );
   }
 
@@ -664,13 +661,10 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
 
             return Stack(
               children: [
-                // Left hidden page - only builds when needed
                 _buildLeftHiddenPage(screenWidth, isLeft, constraints),
 
-                // Right hidden page - only builds when needed
                 _buildRightHiddenPage(screenWidth, isLeft, constraints),
 
-                // Main content - only rebuilds when animation changes
                 _buildMainContent(screenWidth, isLeft, constraints),
 
                 // Gesture detectors - only depend on isActive state, not animation value
