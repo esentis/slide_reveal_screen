@@ -1,3 +1,10 @@
+## 🐛 1.0.5
+
+- **Bug fixes**
+  - Fixes rendering issue when using `showCupertinoSheet`
+- **API**
+  - `leftPlaceHolderWidget` & `rightPlaceHolderWidget` are optional, but if not provided their `builder` methods should be provided.
+
 ## ⚡️ 1.0.4
 
 - **Resource Management**:
