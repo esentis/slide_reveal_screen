@@ -191,6 +191,9 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
   bool _wasLeftPageVisible = false;
   bool _wasRightPageVisible = false;
 
+  // Track if user is currently dragging to block other interactions
+  bool _isDragging = false;
+
   @override
   void initState() {
     super.initState();
@@ -320,6 +323,11 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
     setState(() {});
   }
 
+  /// Called when the user starts dragging on the left edge of the screen.
+  void _onLeftEdgePanStart(DragStartDetails details) {
+    _isDragging = true;
+  }
+
   /// Called when the user drags on the left edge of the screen.
   ///
   /// This updates the animation value by calculating the change based on
@@ -344,12 +352,18 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
   /// It determines whether to complete or reverse the animation based on the
   /// current animation value and the velocity of the gesture.
   void _onLeftEdgePanEnd(DragEndDetails details) {
+    _isDragging = false;
     if (_animationController.value > 0.5 ||
         details.velocity.pixelsPerSecond.dx > widget.flingVelocity) {
       _animationController.fling(velocity: 1);
     } else {
       _animationController.fling(velocity: -1);
     }
+  }
+
+  /// Called when the user starts dragging on the right edge of the screen.
+  void _onRightEdgePanStart(DragStartDetails details) {
+    _isDragging = true;
   }
 
   /// Called when the user drags on the right edge of the screen.
@@ -375,6 +389,7 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
   /// It decides whether to complete or reverse the animation based on the
   /// current animation value and gesture velocity.
   void _onRightEdgePanEnd(DragEndDetails details) {
+    _isDragging = false;
     if (_animationController.value > 0.5 ||
         details.velocity.pixelsPerSecond.dx < -widget.flingVelocity) {
       _animationController.fling(velocity: 1);
@@ -531,6 +546,7 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
                 : Colors.transparent,
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
+          onPanStart: _onLeftEdgePanStart,
           onPanUpdate: (details) => _onLeftEdgePanUpdate(details, screenWidth),
           onPanEnd: _onLeftEdgePanEnd,
         ),
@@ -583,6 +599,7 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
                 : Colors.transparent,
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
+          onPanStart: _onRightEdgePanStart,
           onPanUpdate: (details) => _onRightEdgePanUpdate(details, screenWidth),
           onPanEnd: _onRightEdgePanEnd,
         ),
@@ -632,6 +649,31 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
     return _cachedShowRight!;
   }
 
+  /// Builds an invisible overlay that blocks interactions with underlying content
+  /// during slide animations to prevent animation freezing.
+  Widget _buildInteractionBlocker() {
+    return Positioned.fill(
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () {
+          // Reset animation when user taps during slide
+          if (_animationController.isAnimating || _animationController.value > 0) {
+            _animationController.fling(velocity: -1);
+          }
+        },
+        onPanStart: (details) {
+          // If user starts a new pan gesture during animation, reset
+          if (_animationController.isAnimating || _animationController.value > 0) {
+            _animationController.fling(velocity: -1);
+          }
+        },
+        child: Container(
+          color: Colors.transparent,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Using LayoutBuilder to respond to size changes
@@ -666,6 +708,10 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
                 _buildRightHiddenPage(screenWidth, isLeft, constraints),
 
                 _buildMainContent(screenWidth, isLeft, constraints),
+
+                // Block interactions with underlying content during slide animations
+                if (_isDragging || (_animationController.isAnimating && animationValue > 0.0))
+                  _buildInteractionBlocker(),
 
                 // Gesture detectors - only depend on isActive state, not animation value
                 if (widget.isLeftActive)
