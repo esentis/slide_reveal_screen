@@ -1,3 +1,8 @@
+## 🐛 1.0.6
+
+- **Bug fixes**
+  - Prevents interaction with main content when sliding is in progress by wrapping it in `AbsorbPointer`
+
 ## 🐛 1.0.5
 
 - **Bug fixes**
