@@ -1,3 +1,17 @@
+## ✨ 1.0.7
+
+- **New Features**
+  - **Full-screen gestures**: Added `enableFullScreenGestures` parameter for horizontal drags from anywhere on screen
+  - **ListView compatibility**: Vertical scrolling works normally while horizontal drags trigger slide reveal
+  - **PageView compatibility**: When `isRightActive: false`, PageView handles right swipes while slide reveal handles left swipes
+  - **Bidirectional gestures**: Revealed hidden pages can now be dragged back to close in the opposite direction
+  - **Smart gesture detection**: Automatic vertical scroll prevention when horizontal gesture wins the gesture arena
+- **API**
+  - Added `enableFullScreenGestures: bool` parameter (defaults to `true` for new feature, `false` maintains original behavior)
+- **Backwards Compatibility**
+  - Fully backwards compatible - existing implementations work unchanged when `enableFullScreenGestures: false`
+  - Original edge-based gesture behavior preserved as fallback
+
 ## 🐛 1.0.6
 
 - **Bug fixes**
