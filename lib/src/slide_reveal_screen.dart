@@ -55,11 +55,6 @@ class SlideRevealScreen extends StatefulWidget {
   /// If the velocity is greater than this value, the animation will complete.
   final num flingVelocity;
 
-  /// This will color the region that can be dragged to reveal the hidden pages.
-  ///
-  /// Defaults to false.
-  final bool showDebugColors;
-
   /// A builder function that returns the width of the left edge.
   ///
   /// The function takes in the [BuildContext] and a boolean flag indicating
@@ -115,6 +110,13 @@ class SlideRevealScreen extends StatefulWidget {
   /// Either this or [rightHiddenPage] must be provided.
   final Widget Function()? rightHiddenPageBuilder;
 
+  /// **EXPERIMENTAL FEATURE**
+  ///
+  /// Enables full-screen horizontal gestures for slide reveal.
+  /// When true, horizontal drags from anywhere on the screen trigger slide reveal.
+  /// When false, only edge-based gestures work (default behavior).
+  final bool enableFullScreenGestures;
+
   const SlideRevealScreen({
     super.key,
     this.leftHiddenPage,
@@ -128,7 +130,6 @@ class SlideRevealScreen extends StatefulWidget {
     this.leftWidgetVisibilityThreshold = 0.1,
     this.rightWidgetVisibilityThreshold = 0.1,
     this.flingVelocity = 500,
-    this.showDebugColors = false,
     this.leftEdgeWidthBuilder,
     this.leftEdgeTopPaddingBuilder,
     this.leftEdgeBottomPaddingBuilder,
@@ -138,6 +139,7 @@ class SlideRevealScreen extends StatefulWidget {
     this.onProgressChanged,
     this.leftHiddenPageBuilder,
     this.rightHiddenPageBuilder,
+    this.enableFullScreenGestures = true,
   }) : assert(
          leftHiddenPage != null || leftHiddenPageBuilder != null,
          'Either leftHiddenPage or leftHiddenPageBuilder must be provided',
@@ -383,6 +385,96 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
     }
   }
 
+  /// Called when the user performs a full-screen horizontal drag.
+  /// Determines the direction and updates the animation accordingly.
+  void _onFullScreenPanUpdate(DragUpdateDetails details, double screenWidth) {
+    final double delta = details.delta.dx;
+    final bool isAnimationActive = _animationController.value > 0.0;
+    final bool currentIsLeft = _getIsLeft();
+
+    // Determine drag direction if not set
+    if (_draggingFromLeft == null) {
+      if (isAnimationActive) {
+        // If a page is already revealed, allow dragging in the closing direction
+        if (currentIsLeft && delta < 0) {
+          // Left page is revealed, allow dragging left to close
+          _draggingFromLeft = true;
+          _cachedIsLeft = null;
+          _cachedShowLeft = null;
+          _cachedShowRight = null;
+        } else if (!currentIsLeft && delta > 0) {
+          // Right page is revealed, allow dragging right to close
+          _draggingFromLeft = false;
+          _cachedIsLeft = null;
+          _cachedShowLeft = null;
+          _cachedShowRight = null;
+        } else {
+          return; // Not a closing gesture
+        }
+      } else {
+        // No page revealed, normal opening logic
+        if (delta > 0) {
+          // Dragging right (revealing left page)
+          if (widget.isLeftActive) {
+            _draggingFromLeft = true;
+            _cachedIsLeft = null;
+            _cachedShowLeft = null;
+            _cachedShowRight = null;
+          } else {
+            return; // Left not active, ignore this gesture
+          }
+        } else if (delta < 0) {
+          // Dragging left (revealing right page)
+          if (widget.isRightActive) {
+            _draggingFromLeft = false;
+            _cachedIsLeft = null;
+            _cachedShowLeft = null;
+            _cachedShowRight = null;
+          } else {
+            return; // Right not active, ignore this gesture
+          }
+        } else {
+          return; // No significant movement yet
+        }
+      }
+    }
+
+    // Handle gesture based on current state and direction
+    if (_draggingFromLeft! && widget.isLeftActive) {
+      // Left page gesture (opening or closing)
+      final double newValue = _animationController.value + delta / screenWidth;
+      _animationController.value = newValue.clamp(0.0, 1.0);
+    } else if (!_draggingFromLeft! && widget.isRightActive) {
+      // Right page gesture (opening or closing)
+      final double newValue = _animationController.value - delta / screenWidth;
+      _animationController.value = newValue.clamp(0.0, 1.0);
+    }
+  }
+
+  /// Called when the user finishes a full-screen horizontal drag.
+  void _onFullScreenPanEnd(DragEndDetails details) {
+    if (_draggingFromLeft == null) return;
+
+    final double velocity = details.velocity.pixelsPerSecond.dx;
+
+    if (_draggingFromLeft!) {
+      // Left page reveal logic
+      if (_animationController.value > 0.5 || velocity > widget.flingVelocity) {
+        _animationController.fling(velocity: 1);
+      } else {
+        _animationController.fling(velocity: -1);
+      }
+    } else {
+      // Right page reveal logic
+      if (_animationController.value > 0.5 ||
+          velocity < -widget.flingVelocity) {
+        _animationController.fling(velocity: 1);
+      } else {
+        _animationController.fling(velocity: -1);
+      }
+    }
+  }
+
   /// Gets a cached dimension or computes it if not available.
   /// Automatically invalidates cache when constraints change.
   double _getCachedDimension(
@@ -418,6 +510,26 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
       return const SizedBox.shrink(); // Don't build at all if not needed
     }
 
+    Widget pageContent =
+        (_animationController.value > widget.leftWidgetVisibilityThreshold)
+            ? widget.leftHiddenPageBuilder != null
+                ? widget.leftHiddenPageBuilder!() // Use builder if available
+                : widget.leftHiddenPage! // Otherwise use the direct widget
+            : widget.leftPlaceHolderWidget;
+
+    // Add gesture detection to hidden page if full-screen gestures are enabled
+    if (widget.enableFullScreenGestures) {
+      pageContent = _FullScreenGestureHandler(
+        screenWidth: screenWidth,
+        onHorizontalPanUpdate:
+            (details) => _onFullScreenPanUpdate(details, screenWidth),
+        onHorizontalPanEnd: _onFullScreenPanEnd,
+        isLeftActive: widget.isLeftActive,
+        isRightActive: widget.isRightActive,
+        child: pageContent,
+      );
+    }
+
     return Positioned.fill(
       child: RepaintBoundary(
         child: Transform.translate(
@@ -425,15 +537,7 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
             -screenWidth / 2 + (_animationController.value * (screenWidth / 2)),
             0,
           ),
-          child:
-              (_animationController.value >
-                      widget.leftWidgetVisibilityThreshold)
-                  ? widget.leftHiddenPageBuilder != null
-                      ? widget
-                          .leftHiddenPageBuilder!() // Use builder if available
-                      : widget
-                          .leftHiddenPage! // Otherwise use the direct widget
-                  : widget.leftPlaceHolderWidget,
+          child: pageContent,
         ),
       ),
     );
@@ -449,6 +553,26 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
       return const SizedBox.shrink(); // Don't build at all if not needed
     }
 
+    Widget pageContent =
+        (_animationController.value > widget.rightWidgetVisibilityThreshold)
+            ? widget.rightHiddenPageBuilder != null
+                ? widget.rightHiddenPageBuilder!() // Use builder if available
+                : widget.rightHiddenPage! // Otherwise use the direct widget
+            : widget.rightPlaceHolderWidget;
+
+    // Add gesture detection to hidden page if full-screen gestures are enabled
+    if (widget.enableFullScreenGestures) {
+      pageContent = _FullScreenGestureHandler(
+        screenWidth: screenWidth,
+        onHorizontalPanUpdate:
+            (details) => _onFullScreenPanUpdate(details, screenWidth),
+        onHorizontalPanEnd: _onFullScreenPanEnd,
+        isLeftActive: widget.isLeftActive,
+        isRightActive: widget.isRightActive,
+        child: pageContent,
+      );
+    }
+
     return Positioned.fill(
       child: RepaintBoundary(
         child: Transform.translate(
@@ -456,15 +580,7 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
             screenWidth / 2 - (_animationController.value * (screenWidth / 2)),
             0,
           ),
-          child:
-              (_animationController.value >
-                      widget.rightWidgetVisibilityThreshold)
-                  ? widget.rightHiddenPageBuilder != null
-                      ? widget
-                          .rightHiddenPageBuilder!() // Use builder if available
-                      : widget
-                          .rightHiddenPage! // Otherwise use the direct widget
-                  : widget.rightPlaceHolderWidget,
+          child: pageContent,
         ),
       ),
     );
@@ -480,9 +596,25 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
         isLeft
             ? _animationController.value * screenWidth
             : -_animationController.value * screenWidth;
+
+    Widget content = RepaintBoundary(child: widget.child);
+
+    // Wrap with gesture detection if full-screen gestures are enabled
+    if (widget.enableFullScreenGestures) {
+      content = _FullScreenGestureHandler(
+        screenWidth: screenWidth,
+        onHorizontalPanUpdate:
+            (details) => _onFullScreenPanUpdate(details, screenWidth),
+        onHorizontalPanEnd: _onFullScreenPanEnd,
+        isLeftActive: widget.isLeftActive,
+        isRightActive: widget.isRightActive,
+        child: content,
+      );
+    }
+
     return Transform.translate(
       offset: Offset(contentOffset, 0),
-      child: RepaintBoundary(child: widget.child),
+      child: content,
     );
   }
 
@@ -525,10 +657,7 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
       bottom: computedLeftEdgeBottom,
       width: showRight ? 0 : computedLeftEdgeWidth,
       child: ColoredBox(
-        color:
-            widget.showDebugColors
-                ? Colors.red.withAlpha(128)
-                : Colors.transparent,
+        color: Colors.transparent,
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
           onPanUpdate: (details) => _onLeftEdgePanUpdate(details, screenWidth),
@@ -577,10 +706,7 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
       bottom: computedRightEdgeBottom,
       width: showLeft ? 0 : computedRightEdgeWidth,
       child: ColoredBox(
-        color:
-            widget.showDebugColors
-                ? Colors.green.withAlpha(128)
-                : Colors.transparent,
+        color: Colors.transparent,
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
           onPanUpdate: (details) => _onRightEdgePanUpdate(details, screenWidth),
@@ -668,24 +794,26 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
                   ignoring: _animationController.value != 0.0,
                   child: _buildMainContent(screenWidth, isLeft, constraints),
                 ),
-                // Gesture detectors - only depend on isActive state, not animation value
-                if (widget.isLeftActive)
-                  _buildLeftEdgeGestureDetector(
-                    screenWidth,
-                    isLeft,
-                    isAnimationActive,
-                    showRight,
-                    constraints,
-                  ),
+                // Edge-based gesture detection (only when full-screen gestures are disabled)
+                if (!widget.enableFullScreenGestures) ...[
+                  if (widget.isLeftActive)
+                    _buildLeftEdgeGestureDetector(
+                      screenWidth,
+                      isLeft,
+                      isAnimationActive,
+                      showRight,
+                      constraints,
+                    ),
 
-                if (widget.isRightActive)
-                  _buildRightEdgeGestureDetector(
-                    screenWidth,
-                    isLeft,
-                    isAnimationActive,
-                    showLeft,
-                    constraints,
-                  ),
+                  if (widget.isRightActive)
+                    _buildRightEdgeGestureDetector(
+                      screenWidth,
+                      isLeft,
+                      isAnimationActive,
+                      showLeft,
+                      constraints,
+                    ),
+                ],
               ],
             );
           },
@@ -708,5 +836,154 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
       _slideRevealController?.removeListener(_externalControllerListener);
     }
     super.dispose();
+  }
+}
+
+/// A specialized widget that handles full-screen horizontal gestures
+/// without interfering with tap events or vertical scrolling
+class _FullScreenGestureHandler extends StatefulWidget {
+  final double screenWidth;
+  final Function(DragUpdateDetails) onHorizontalPanUpdate;
+  final Function(DragEndDetails) onHorizontalPanEnd;
+  final bool isLeftActive;
+  final bool isRightActive;
+  final Widget child;
+
+  const _FullScreenGestureHandler({
+    required this.screenWidth,
+    required this.onHorizontalPanUpdate,
+    required this.onHorizontalPanEnd,
+    required this.isLeftActive,
+    required this.isRightActive,
+    required this.child,
+  });
+
+  @override
+  _FullScreenGestureHandlerState createState() =>
+      _FullScreenGestureHandlerState();
+}
+
+class _FullScreenGestureHandlerState extends State<_FullScreenGestureHandler> {
+  bool _isTrackingHorizontalGesture = false;
+  Offset? _startPosition;
+  double _totalDeltaX = 0.0;
+  DateTime? _lastMoveTime;
+  double _lastDeltaX = 0.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: _onPointerDown,
+      onPointerMove: _onPointerMove,
+      onPointerUp: _onPointerUp,
+      onPointerCancel: _onPointerCancel,
+      child: Stack(
+        children: [
+          // When horizontal gesture is active, absorb pointer events from the child
+          // This prevents ListView vertical scrolling during horizontal slide gestures
+          AbsorbPointer(
+            absorbing: _isTrackingHorizontalGesture,
+            child: widget.child,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    _startPosition = event.position;
+    _isTrackingHorizontalGesture = false;
+    _totalDeltaX = 0.0;
+    _lastMoveTime = DateTime.now();
+    _lastDeltaX = 0.0;
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    if (_startPosition == null) return;
+
+    final delta = event.delta;
+    final deltaX = delta.dx;
+
+    // Track velocity
+    _lastDeltaX = deltaX;
+    _lastMoveTime = DateTime.now();
+
+    // Accumulate total horizontal movement
+    _totalDeltaX += deltaX;
+
+    if (!_isTrackingHorizontalGesture) {
+      // Check if this is clearly a horizontal gesture
+      final horizontalDistance = _totalDeltaX.abs();
+      final verticalDistance = (event.position.dy - _startPosition!.dy).abs();
+
+      // Use more lenient thresholds for gesture detection
+      // This allows both opening and closing gestures to be detected easily
+      if (horizontalDistance > 5.0 && horizontalDistance > verticalDistance) {
+        // Always allow horizontal gestures - the pan update logic will determine validity
+        setState(() {
+          _isTrackingHorizontalGesture = true;
+        });
+        // Send a synthetic pan start
+        widget.onHorizontalPanUpdate(
+          DragUpdateDetails(
+            globalPosition: event.position,
+            delta: Offset(_totalDeltaX, 0), // Send accumulated delta
+            localPosition: event.localPosition,
+            sourceTimeStamp: event.timeStamp,
+          ),
+        );
+      }
+    } else {
+      // We're already tracking, send the update
+      widget.onHorizontalPanUpdate(
+        DragUpdateDetails(
+          globalPosition: event.position,
+          delta: delta,
+          localPosition: event.localPosition,
+          sourceTimeStamp: event.timeStamp,
+        ),
+      );
+    }
+  }
+
+  void _onPointerUp(PointerUpEvent event) {
+    if (_isTrackingHorizontalGesture) {
+      // Calculate rough velocity based on last movement
+      double velocityX = 0.0;
+      if (_lastMoveTime != null) {
+        final timeDiff =
+            DateTime.now().difference(_lastMoveTime!).inMilliseconds;
+        if (timeDiff > 0 && timeDiff < 100) {
+          // Only use recent movements
+          velocityX = _lastDeltaX * 1000 / timeDiff; // pixels per second
+        }
+      }
+
+      widget.onHorizontalPanEnd(
+        DragEndDetails(
+          velocity: Velocity(pixelsPerSecond: Offset(velocityX, 0)),
+          globalPosition: event.position,
+          localPosition: event.localPosition,
+        ),
+      );
+    }
+    _reset();
+  }
+
+  void _onPointerCancel(PointerCancelEvent event) {
+    _reset();
+  }
+
+  void _reset() {
+    if (mounted) {
+      setState(() {
+        _startPosition = null;
+        _isTrackingHorizontalGesture = false;
+        _totalDeltaX = 0.0;
+        _lastMoveTime = null;
+        _lastDeltaX = 0.0;
+      });
+    }
   }
 }
