@@ -664,12 +664,10 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
                 _buildLeftHiddenPage(screenWidth, isLeft, constraints),
 
                 _buildRightHiddenPage(screenWidth, isLeft, constraints),
-
-                AbsorbPointer(
-                  absorbing: _animationController.value != 0.0,
+                IgnorePointer(
+                  ignoring: _animationController.value != 0.0,
                   child: _buildMainContent(screenWidth, isLeft, constraints),
                 ),
-
                 // Gesture detectors - only depend on isActive state, not animation value
                 if (widget.isLeftActive)
                   _buildLeftEdgeGestureDetector(
