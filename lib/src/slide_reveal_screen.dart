@@ -139,7 +139,7 @@ class SlideRevealScreen extends StatefulWidget {
     this.onProgressChanged,
     this.leftHiddenPageBuilder,
     this.rightHiddenPageBuilder,
-    this.enableFullScreenGestures = true,
+    this.enableFullScreenGestures = false,
   }) : assert(
          leftHiddenPage != null || leftHiddenPageBuilder != null,
          'Either leftHiddenPage or leftHiddenPageBuilder must be provided',
