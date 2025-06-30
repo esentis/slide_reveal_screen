@@ -52,8 +52,6 @@ class _MyAppState extends State<MyApp> with TickerProviderStateMixin {
           isLeftActive =
               pageController.page == 0; // Assuming 0 is the first page
         }
-
-        print('isRight active $isRightActive isLeftActive $isLeftActive');
       });
     });
   }
@@ -65,10 +63,8 @@ class _MyAppState extends State<MyApp> with TickerProviderStateMixin {
       theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
       home: Material(
         child: SlideRevealScreen(
-          // Enable full-screen horizontal gestures
-          enableFullScreenGestures: true,
-
           controller: _controller,
+          enableFullScreenGestures: true,
           onProgressChanged: (progress) {
             log(
               'Progress: ${progress.value}, Side: ${progress.activeSide}, State: ${progress.state}',
