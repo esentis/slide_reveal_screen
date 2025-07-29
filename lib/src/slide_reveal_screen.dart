@@ -100,6 +100,11 @@ class SlideRevealScreen extends StatefulWidget {
   /// Callback that gets invoked whenever the slide reveal progress changes.
   final ValueChanged<SlideRevealProgress>? onProgressChanged;
 
+  /// Callback that gets invoked when a user attempts to swipe on a disabled panel.
+  /// Only triggered for edge-based gestures, not full-screen gestures.
+  /// The callback receives the direction (left or right) where the gesture started.
+  final ValueChanged<RevealSide>? onDisabledPanelGesture;
+
   /// A widget builder for the left hidden page.
   /// This allows for dynamic creation of the widget only when needed.
   /// Either this or [leftHiddenPage] must be provided.
@@ -140,6 +145,7 @@ class SlideRevealScreen extends StatefulWidget {
     this.leftHiddenPageBuilder,
     this.rightHiddenPageBuilder,
     this.enableFullScreenGestures = false,
+    this.onDisabledPanelGesture,
   }) : assert(
          leftHiddenPage != null || leftHiddenPageBuilder != null,
          'Either leftHiddenPage or leftHiddenPageBuilder must be provided',
@@ -320,6 +326,22 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
       _draggingFromLeft = null;
     }
     setState(() {});
+  }
+
+  /// Called when the user starts dragging on a disabled left panel.
+  /// Triggers the disabled panel gesture callback.
+  void _onDisabledLeftPanStart(DragStartDetails details) {
+    if (widget.onDisabledPanelGesture != null) {
+      widget.onDisabledPanelGesture!(RevealSide.left);
+    }
+  }
+
+  /// Called when the user starts dragging on a disabled right panel.
+  /// Triggers the disabled panel gesture callback.
+  void _onDisabledRightPanStart(DragStartDetails details) {
+    if (widget.onDisabledPanelGesture != null) {
+      widget.onDisabledPanelGesture!(RevealSide.right);
+    }
   }
 
   /// Called when the user drags on the left edge of the screen.
@@ -660,8 +682,12 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
         color: Colors.transparent,
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onPanUpdate: (details) => _onLeftEdgePanUpdate(details, screenWidth),
-          onPanEnd: _onLeftEdgePanEnd,
+          onPanStart: widget.isLeftActive ? null : _onDisabledLeftPanStart,
+          onPanUpdate:
+              widget.isLeftActive
+                  ? (details) => _onLeftEdgePanUpdate(details, screenWidth)
+                  : null,
+          onPanEnd: widget.isLeftActive ? _onLeftEdgePanEnd : null,
         ),
       ),
     );
@@ -709,8 +735,12 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
         color: Colors.transparent,
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onPanUpdate: (details) => _onRightEdgePanUpdate(details, screenWidth),
-          onPanEnd: _onRightEdgePanEnd,
+          onPanStart: widget.isRightActive ? null : _onDisabledRightPanStart,
+          onPanUpdate:
+              widget.isRightActive
+                  ? (details) => _onRightEdgePanUpdate(details, screenWidth)
+                  : null,
+          onPanEnd: widget.isRightActive ? _onRightEdgePanEnd : null,
         ),
       ),
     );
@@ -796,23 +826,23 @@ class SlideRevealScreenState extends State<SlideRevealScreen>
                 ),
                 // Edge-based gesture detection (only when full-screen gestures are disabled)
                 if (!widget.enableFullScreenGestures) ...[
-                  if (widget.isLeftActive)
-                    _buildLeftEdgeGestureDetector(
-                      screenWidth,
-                      isLeft,
-                      isAnimationActive,
-                      showRight,
-                      constraints,
-                    ),
+                  // Always build left edge detector (handles both active and disabled states)
+                  _buildLeftEdgeGestureDetector(
+                    screenWidth,
+                    isLeft,
+                    isAnimationActive,
+                    showRight,
+                    constraints,
+                  ),
 
-                  if (widget.isRightActive)
-                    _buildRightEdgeGestureDetector(
-                      screenWidth,
-                      isLeft,
-                      isAnimationActive,
-                      showLeft,
-                      constraints,
-                    ),
+                  // Always build right edge detector (handles both active and disabled states)
+                  _buildRightEdgeGestureDetector(
+                    screenWidth,
+                    isLeft,
+                    isAnimationActive,
+                    showLeft,
+                    constraints,
+                  ),
                 ],
               ],
             );
