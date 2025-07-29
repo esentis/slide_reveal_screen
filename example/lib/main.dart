@@ -3,7 +3,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:slide_reveal_screen/slider_reveal_screen.dart';
 
-void main() => runApp(MyApp());
+void main() => runApp(MaterialApp(home: MyApp()));
 
 /// Main app showcasing SlideRevealScreen with full-screen gestures
 class MyApp extends StatefulWidget {
@@ -21,7 +21,7 @@ class _MyAppState extends State<MyApp> with TickerProviderStateMixin {
     vsync: this,
   );
   bool isRightActive = false;
-  bool isLeftActive = false;
+  bool isLeftActive = true;
   void _preparePageViewBoundaries() {
     // This method can be used to prepare any specific boundaries or settings
     // for the PageView if needed in the future.
@@ -58,46 +58,47 @@ class _MyAppState extends State<MyApp> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'SlideRevealScreen Full-Screen Gestures Demo',
-      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
-      home: Material(
-        child: SlideRevealScreen(
-          controller: _controller,
-          enableFullScreenGestures: true,
-          onProgressChanged: (progress) {
-            log(
-              'Progress: ${progress.value}, Side: ${progress.activeSide}, State: ${progress.state}',
-            );
-          },
-          leftHiddenPage: LeftHiddenPage(controller: _controller),
-          rightHiddenPage: RightHiddenPage(controller: _controller),
-          leftWidgetVisibilityThreshold: 0.3,
-          leftPlaceHolderWidget: const Center(
-            child: CircularProgressIndicator(color: Colors.white),
+    return SlideRevealScreen(
+      controller: _controller,
+      enableFullScreenGestures:
+          false, // Test edge-based gestures for disabled callback
+      onProgressChanged: (progress) {
+        log(
+          'Progress: ${progress.value}, Side: ${progress.activeSide}, State: ${progress.state}',
+        );
+      },
+      onDisabledPanelGesture: (direction) {
+        log('🚫 Disabled panel gesture attempted: ${direction.name}');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Disabled ${direction.name} panel tapped! Show modal sheet here.',
+            ),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 2),
           ),
-          rightWidgetVisibilityThreshold: 0.3,
-          rightPlaceHolderWidget: const Center(
-            child: CircularProgressIndicator(color: Colors.white),
-          ),
+        );
+      },
+      leftHiddenPage: LeftHiddenPage(controller: _controller),
+      rightHiddenPage: RightHiddenPage(controller: _controller),
+      leftWidgetVisibilityThreshold: 0.3,
+      leftPlaceHolderWidget: const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      ),
+      rightWidgetVisibilityThreshold: 0.3,
+      rightPlaceHolderWidget: const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      ),
 
-          isRightActive:
-              tabController.index == 1
-                  ? isRightActive
-                      ? true
-                      : false
-                  : true, // Only show PageView when isRightActive is false,
-          isLeftActive:
-              tabController.index == 1
-                  ? isLeftActive
-                      ? true
-                      : false
-                  : true, // Only show LeftHiddenPage when isLeftActive is false
-          child: MainContent(
-            pageController: pageController,
-            tabController: tabController,
-          ),
-        ),
+      isRightActive: isRightActive, // Toggle to test disabled callback
+      isLeftActive: isLeftActive, // Toggle to test disabled callback
+      child: MainContent(
+        pageController: pageController,
+        tabController: tabController,
+        isLeftActive: isLeftActive,
+        isRightActive: isRightActive,
+        onToggleLeft: () => setState(() => isLeftActive = !isLeftActive),
+        onToggleRight: () => setState(() => isRightActive = !isRightActive),
       ),
     );
   }
@@ -387,9 +388,17 @@ class MainContent extends StatelessWidget {
     super.key,
     required this.pageController,
     required this.tabController,
+    required this.isLeftActive,
+    required this.isRightActive,
+    required this.onToggleLeft,
+    required this.onToggleRight,
   });
   final PageController pageController;
   final TabController tabController;
+  final bool isLeftActive;
+  final bool isRightActive;
+  final VoidCallback onToggleLeft;
+  final VoidCallback onToggleRight;
 
   @override
   Widget build(BuildContext context) {
@@ -410,7 +419,12 @@ class MainContent extends StatelessWidget {
         controller: tabController,
         physics: NeverScrollableScrollPhysics(),
         children: [
-          ListViewTab(),
+          ListViewTab(
+            isLeftActive: isLeftActive,
+            isRightActive: isRightActive,
+            onToggleLeft: onToggleLeft,
+            onToggleRight: onToggleRight,
+          ),
           PageViewTab(pageViewController: pageController),
           ButtonsTab(),
           InfoTab(),
@@ -422,7 +436,18 @@ class MainContent extends StatelessWidget {
 
 /// Tab 1: ListView demonstration
 class ListViewTab extends StatelessWidget {
-  const ListViewTab({super.key});
+  const ListViewTab({
+    super.key,
+    required this.isLeftActive,
+    required this.isRightActive,
+    required this.onToggleLeft,
+    required this.onToggleRight,
+  });
+
+  final bool isLeftActive;
+  final bool isRightActive;
+  final VoidCallback onToggleLeft;
+  final VoidCallback onToggleRight;
 
   @override
   Widget build(BuildContext context) {
@@ -431,10 +456,43 @@ class ListViewTab extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(16),
           color: Colors.blue.shade50,
-          child: const Text(
-            '📱 Try vertical scrolling (works normally) and horizontal dragging (reveals pages)',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontWeight: FontWeight.bold),
+          child: Column(
+            children: [
+              const Text(
+                '📱 Try swiping from edges to test disabled panel callback',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: onToggleLeft,
+                    icon: Icon(
+                      isLeftActive ? Icons.check_circle : Icons.cancel,
+                    ),
+                    label: Text('Left: ${isLeftActive ? "ON" : "OFF"}'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isLeftActive ? Colors.green : Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: onToggleRight,
+                    icon: Icon(
+                      isRightActive ? Icons.check_circle : Icons.cancel,
+                    ),
+                    label: Text('Right: ${isRightActive ? "ON" : "OFF"}'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          isRightActive ? Colors.green : Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
         Expanded(
