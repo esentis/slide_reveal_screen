@@ -1,3 +1,17 @@
+## ✨ 1.0.8
+
+- **New Features**
+  - **Disabled panel gesture callback**: Added `onDisabledPanelGesture` parameter to detect swipe attempts on disabled panels
+  - **Direction awareness**: Callback includes `RevealSide` parameter indicating which edge was swiped (left or right)
+  - **Edge-only detection**: Only triggers for edge-based gestures, preventing false positives from full-screen interactions
+  - **Modal sheet integration**: Perfect for prompting users with modal sheets when they try to access disabled functionality
+- **API**
+  - Added `onDisabledPanelGesture: ValueChanged<RevealSide>?` parameter
+  - Uses existing `RevealSide` enum for direction information
+- **Backwards Compatibility**
+  - Fully backwards compatible - optional parameter with no breaking changes
+  - Existing gesture behavior unchanged when parameter is not provided
+
 ## ✨ 1.0.7
 
 - **New Features**
